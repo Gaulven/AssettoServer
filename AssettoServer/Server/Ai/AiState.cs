@@ -407,14 +407,21 @@ public class AiState
         {
             EntryCar? closestCar = null;
             float minDistance = float.MaxValue;
+
+            // Calculate cone boundaries based on configuration
+            float coneDegrees = _configuration.Extra.AiParams.PlayerObstacleDetectionConeDegrees;
+            float coneStart = 180.0f - coneDegrees;
+            float coneEnd = 180.0f + coneDegrees;
+
             for (var i = 0; i < _entryCarManager.EntryCars.Length; i++)
             {
                 var playerCar = _entryCarManager.EntryCars[i];
                 if (playerCar.Client?.HasSentFirstUpdate == true)
                 {
                     float distance = Vector3.DistanceSquared(playerCar.Status.Position, Status.Position);
+                    float angleToCar = GetAngleToCar(playerCar.Status);
 
-                    if (distance < minDistance && GetAngleToCar(playerCar.Status) is > 166 and < 194)
+                    if (distance < minDistance && angleToCar > coneStart && angleToCar < coneEnd)
                     {
                         minDistance = distance;
                         closestCar = playerCar;
