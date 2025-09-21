@@ -36,6 +36,7 @@ public class ACServerConfigurationValidator : AbstractValidator<ACServerConfigur
                 aiParams.RuleFor(ai => ai.CarSpecificOverrides).NotNull();
                 aiParams.RuleFor(ai => ai.AiBehaviorUpdateIntervalHz).GreaterThan(0);
                 aiParams.RuleFor(ai => ai.PlayerObstacleDetectionConeDegrees).InclusiveBetween(1, 90).WithMessage("PlayerObstacleDetectionConeDegrees must be between 1 and 90 degrees");
+                aiParams.RuleFor(ai => ai.PlayerObstacleMaxSplineDistanceMeters).GreaterThan(0).WithMessage("PlayerObstacleMaxSplineDistanceMeters must be greater than 0");
                 aiParams.RuleFor(ai => ai.LaneCountSpecificOverrides).NotNull();
                 aiParams.RuleForEach(ai => ai.LaneCountSpecificOverrides).ChildRules(overrides =>
                 {

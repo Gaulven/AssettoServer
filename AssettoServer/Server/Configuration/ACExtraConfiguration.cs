@@ -313,6 +313,8 @@ public partial class AiParams : ObservableObject
     public List<Sphere>? IgnorePlayerObstacleSpheres { get; set; }
     [YamlMember(Description = "Cone angle in degrees for player obstacle detection. AI will only detect players within this angle in front of them. Default 14, meaning 14 degrees to each side")]
     public float PlayerObstacleDetectionConeDegrees { get; set; } = 14.0f;
+    [YamlMember(Description = "Maximum distance in meters from the AI spline for a player to be considered an obstacle. AI will check if players are within this distance of their intended path")]
+    public float PlayerObstacleMaxSplineDistanceMeters { get; set; } = 1.85f;
     [YamlMember(Description = "Override some settings for newly spawned cars based on the number of lanes")]
     public Dictionary<int, LaneCountSpecificOverrides> LaneCountSpecificOverrides { get; set; } = new();
 

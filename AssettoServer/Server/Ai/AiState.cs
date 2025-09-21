@@ -412,6 +412,7 @@ public class AiState
             float coneDegrees = _configuration.Extra.AiParams.PlayerObstacleDetectionConeDegrees;
             float coneStart = 180.0f - coneDegrees;
             float coneEnd = 180.0f + coneDegrees;
+            float maxSplineDistance = _configuration.Extra.AiParams.PlayerObstacleMaxSplineDistanceMeters;
 
             for (var i = 0; i < _entryCarManager.EntryCars.Length; i++)
             {
@@ -421,10 +422,18 @@ public class AiState
                     float distance = Vector3.DistanceSquared(playerCar.Status.Position, Status.Position);
                     float angleToCar = GetAngleToCar(playerCar.Status);
 
+                    // First check if player is within the detection cone
                     if (distance < minDistance && angleToCar > coneStart && angleToCar < coneEnd)
                     {
-                        minDistance = distance;
-                        closestCar = playerCar;
+                        // Check if player is within the maximum spline distance
+                        var (_, splineDistanceSquared) = _spline.WorldToSpline(playerCar.Status.Position);
+                        float splineDistance = MathF.Sqrt(splineDistanceSquared);
+
+                        if (splineDistance <= maxSplineDistance)
+                        {
+                            minDistance = distance;
+                            closestCar = playerCar;
+                        }
                     }
                 }
             }
