@@ -50,6 +50,7 @@ public partial class EntryCar
     public List<LaneSpawnBehavior>? AiAllowedLanes { get; set; }
     public float TyreDiameterMeters { get; set; }
     private readonly List<AiState> _aiStates = new List<AiState>();
+    private readonly List<AiState> _statesToDespawn = new List<AiState>(); // Reusable list to avoid allocations
     private readonly ReaderWriterLockSlim _aiStatesLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
     
     private readonly Func<EntryCar, AiState> _aiStateFactory;
@@ -126,6 +127,8 @@ public partial class EntryCar
 
     public void RemoveUnsafeStates()
     {
+        _statesToDespawn.Clear(); // Reuse the existing list
+
         _aiStatesLock.EnterReadLock();
         try
         {
@@ -142,8 +145,8 @@ public partial class EntryCar
                         && Vector3.DistanceSquared(aiState.Status.Position, targetAiState.Status.Position) < _configuration.Extra.AiParams.MinStateDistanceSquared
                         && (_configuration.Extra.AiParams.TwoWayTraffic || Vector3.Dot(aiState.Status.Velocity, targetAiState.Status.Velocity) > 0))
                     {
-                        aiState.Despawn();
-                        Logger.Verbose("Removed close state from AI {SessionId}", SessionId);
+                        _statesToDespawn.Add(aiState);
+                        break; // Only add once per aiState to avoid duplicate despawning
                     }
                 }
             }
@@ -151,6 +154,13 @@ public partial class EntryCar
         finally
         {
             _aiStatesLock.ExitReadLock();
+        }
+
+        // Despawn outside the lock to avoid deadlock with SlowestAiStates
+        foreach (var state in _statesToDespawn)
+        {
+            state.Despawn();
+            Logger.Verbose("Removed close state from AI {SessionId}", SessionId);
         }
     }
 

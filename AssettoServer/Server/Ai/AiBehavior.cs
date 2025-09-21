@@ -169,6 +169,8 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
     private readonly List<Vector3> _playerOffsetPositions = new();
     private readonly List<KeyValuePair<AiState, float>> _aiMinDistanceToPlayer = new();
     private readonly List<KeyValuePair<EntryCar, float>> _playerMinDistanceToAi = new();
+    private readonly List<EntryCar> _playersToProcess = new();
+    private readonly List<EntryCar> _playersToRemove = new();
     private void Update()
     {
         using var context = _updateDurationTimer.NewTimer();
@@ -266,31 +268,55 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
             }
         }
 
-        while (_playerCars.Count > 0 && _uninitializedAiStates.Count > 0)
-        {
-            int spawnPointId = -1;
-            while (spawnPointId < 0 && _playerCars.Count > 0)
-            {
-                var targetPlayerCar = _playerCars.ElementAt(GetRandomWeighted(_playerCars.Count));
-                _playerCars.Remove(targetPlayerCar);
+        _playersToProcess.Clear();
+        _playersToProcess.AddRange(_playerCars);
 
-                spawnPointId = GetSpawnPoint(targetPlayerCar);
+        while (_playersToProcess.Count > 0 && _uninitializedAiStates.Count > 0)
+        {
+
+            bool anySpawned = false;
+            _playersToRemove.Clear();
+
+            foreach (var targetPlayerCar in _playersToProcess)
+            {
+                if (_uninitializedAiStates.Count == 0)
+                    break;
+
+                int spawnPointId = GetSpawnPoint(targetPlayerCar);
+
+                if (spawnPointId < 0 || !_junctionEvaluator.TryNext(spawnPointId, out _))
+                {
+                    // If this player can't spawn anything, remove them to avoid infinite retries
+                    _playersToRemove.Add(targetPlayerCar);
+                    continue;
+                }
+
+                var previousAi = FindClosestAiState(spawnPointId, false);
+                var nextAi = FindClosestAiState(spawnPointId, true);
+
+                // Try to spawn an AI state for this player
+                foreach (var targetAiState in _uninitializedAiStates)
+                {
+                    if (!targetAiState.CanSpawn(spawnPointId, previousAi, nextAi))
+                        continue;
+
+                    targetAiState.Teleport(spawnPointId);
+                    _uninitializedAiStates.Remove(targetAiState);
+                    anySpawned = true;
+                    break; // Only spawn one AI state per player per iteration
+                }
             }
 
-            if (spawnPointId < 0 || !_junctionEvaluator.TryNext(spawnPointId, out _))
-                continue;
-
-            var previousAi = FindClosestAiState(spawnPointId, false);
-            var nextAi = FindClosestAiState(spawnPointId, true);
-
-            foreach (var targetAiState in _uninitializedAiStates)
+            // Remove players that can't spawn anything to prevent infinite retries
+            foreach (var player in _playersToRemove)
             {
-                if (!targetAiState.CanSpawn(spawnPointId, previousAi, nextAi))
-                    continue;
+                _playersToProcess.Remove(player);
+            }
 
-                targetAiState.Teleport(spawnPointId);
-
-                _uninitializedAiStates.Remove(targetAiState);
+            // If no AI states were spawned in this iteration, break to prevent infinite loop
+            if (!anySpawned)
+            {
+                Log.Verbose("No AI states could be spawned, breaking spawn loop");
                 break;
             }
         }
@@ -421,9 +447,26 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
             direction = Vector3.Dot(ops.GetForwardVector(spawnPointId), playerCar.Status.Velocity) > 0 ? 1 : -1;
         }
 
+        int maxSearchDistance = _configuration.Extra.AiParams.MaxSpawnDistancePoints - spawnDistance;
+        int totalDistanceTraversed = 0;
+
         while (spawnPointId >= 0 && !IsPositionSafe(spawnPointId))
         {
+            // Check if we've searched too far from the original spawnPointId
+            if (totalDistanceTraversed > maxSearchDistance)
+            {
+                Log.Verbose("GetSpawnPoint could not find safe spawn position within {MaxDistance} points", maxSearchDistance);
+                return -1;
+            }
+
+            int previousPointId = spawnPointId;
             spawnPointId = _junctionEvaluator.Traverse(spawnPointId, direction * 5);
+
+            // Calculate actual distance traversed
+            if (spawnPointId >= 0)
+            {
+                totalDistanceTraversed += Math.Abs(spawnPointId - previousPointId);
+            }
         }
         
         if (spawnPointId >= 0)
