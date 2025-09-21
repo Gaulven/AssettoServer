@@ -171,6 +171,8 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
     private readonly List<KeyValuePair<EntryCar, float>> _playerMinDistanceToAi = new();
     private readonly List<EntryCar> _playersToProcess = new();
     private readonly List<EntryCar> _playersToRemove = new();
+    private readonly List<int> _sameDirectionLanes = new();
+    private readonly List<int> _oppositeDirectionLanes = new();
     private void Update()
     {
         using var context = _updateDurationTimer.NewTimer();
@@ -199,7 +201,6 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
                 entryCar.RemoveUnsafeStates();
                 entryCar.GetInitializedStates(_initializedAiStates, _uninitializedAiStates);
             }
-            
         }
 
         _aiStateCountMetric.Set(_initializedAiStates.Count);
@@ -439,7 +440,7 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
 
         if (spawnPointId >= 0)
         {
-            spawnPointId = _spline.RandomLane(spawnPointId);
+            spawnPointId = SelectLaneForPlayer(spawnPointId, playerCar);
         }
         
         if (spawnPointId >= 0 && ops.Points[spawnPointId].NextId >= 0)
@@ -471,10 +472,78 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
         
         if (spawnPointId >= 0)
         {
-            spawnPointId = _spline.RandomLane(spawnPointId);
+            spawnPointId = SelectLaneForPlayer(spawnPointId, playerCar);
         }
 
         return spawnPointId;
+    }
+
+    private int SelectLaneForPlayer(int spawnPointId, EntryCar playerCar)
+    {
+        // If prioritization is disabled, use random lane selection
+        if (!_configuration.Extra.AiParams.PrioritizePlayerTraffic || !_configuration.Extra.AiParams.TwoWayTraffic)
+        {
+            return _spline.RandomLane(spawnPointId);
+        }
+
+        // Get all available lanes for this spawn point
+        var availableLanes = _spline.GetLanes(spawnPointId);
+        if (availableLanes.Length <= 1)
+        {
+            return _spline.RandomLane(spawnPointId);
+        }
+
+        // Determine player's current lane direction using the same pattern as GetLanes
+        var playerSplineResult = _spline.WorldToSpline(playerCar.Status.Position);
+        if (playerSplineResult.PointId < 0)
+        {
+            return _spline.RandomLane(spawnPointId);
+        }
+
+        // Clear and reuse the existing lists to avoid allocations
+        _sameDirectionLanes.Clear();
+        _oppositeDirectionLanes.Clear();
+
+        // Separate lanes by direction using the existing IsSameDirection pattern
+        foreach (var laneId in availableLanes)
+        {
+            if (_spline.Operations.IsSameDirection(playerSplineResult.PointId, laneId))
+            {
+                _sameDirectionLanes.Add(laneId);
+            }
+            else
+            {
+                _oppositeDirectionLanes.Add(laneId);
+            }
+        }
+
+        // Apply weighted selection based on configuration
+        if (_sameDirectionLanes.Count > 0 && _oppositeDirectionLanes.Count > 0)
+        {
+            // Both directions available - use weighted random selection
+            float sameDirectionProbability = _configuration.Extra.AiParams.SameDirectionTrafficProbability;
+            if (Random.Shared.NextDouble() < sameDirectionProbability)
+            {
+                return _sameDirectionLanes[Random.Shared.Next(_sameDirectionLanes.Count)];
+            }
+            else
+            {
+                return _oppositeDirectionLanes[Random.Shared.Next(_oppositeDirectionLanes.Count)];
+            }
+        }
+        else if (_sameDirectionLanes.Count > 0)
+        {
+            // Only same-direction lanes available
+            return _sameDirectionLanes[Random.Shared.Next(_sameDirectionLanes.Count)];
+        }
+        else if (_oppositeDirectionLanes.Count > 0)
+        {
+            // Only opposite-direction lanes available
+            return _oppositeDirectionLanes[Random.Shared.Next(_oppositeDirectionLanes.Count)];
+        }
+
+        // Final fallback to random selection
+        return _spline.RandomLane(spawnPointId);
     }
 
     private void AdjustOverbooking()
@@ -509,4 +578,5 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
 
         return Task.CompletedTask;
     }
+
 }

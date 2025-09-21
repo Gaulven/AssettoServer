@@ -315,6 +315,10 @@ public partial class AiParams : ObservableObject
     public float PlayerObstacleDetectionConeDegrees { get; set; } = 14.0f;
     [YamlMember(Description = "Maximum distance in meters from the AI spline for a player to be considered an obstacle. AI will check if players are within this distance of their intended path")]
     public float PlayerObstacleMaxSplineDistanceMeters { get; set; } = 1.85f;
+    [YamlMember(Description = "Prioritize spawning AI traffic in the same lane direction as players when TwoWayTraffic is enabled. False = spawn randomly in all lanes (good for two-lane highways), True = prioritize player's lane direction first")]
+    public bool PrioritizePlayerTraffic { get; set; } = false;
+    [YamlMember(Description = "Probability (0.0-1.0) of spawning AI traffic in same-direction lanes when PrioritizePlayerTraffic is enabled. 0.8 = 80% same-direction, 20% opposite-direction")]
+    public float SameDirectionTrafficProbability { get; set; } = 0.8f;
     [YamlMember(Description = "Override some settings for newly spawned cars based on the number of lanes")]
     public Dictionary<int, LaneCountSpecificOverrides> LaneCountSpecificOverrides { get; set; } = new();
 
