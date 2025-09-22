@@ -126,6 +126,8 @@ public class EntryCarManager
             if (client.IsConnected && client.EntryCar.Client == client && ConnectedCars.TryRemove(client.SessionId, out _))
             {
                 client.Logger.Information("{ClientName} has disconnected", client.Name);
+                BroadcastPacket(new ChatMessage { SessionId = 255, Message = $"{client.Name} has disconnected." });
+
                 client.EntryCar.Client = null;
                 client.IsConnected = false;
 

@@ -135,19 +135,29 @@ public partial class EntryCar
             for (var i = 0; i < _aiStates.Count; i++)
             {
                 var aiState = _aiStates[i];
+
+                // Skip uninitialized states
                 if (!aiState.Initialized) continue;
 
                 for (var j = 0; j < _aiStates.Count; j++)
                 {
                     var targetAiState = _aiStates[j];
-                    if (aiState != targetAiState
-                        && targetAiState.Initialized
-                        && Vector3.DistanceSquared(aiState.Status.Position, targetAiState.Status.Position) < _configuration.Extra.AiParams.MinStateDistanceSquared
-                        && (_configuration.Extra.AiParams.TwoWayTraffic || Vector3.Dot(aiState.Status.Velocity, targetAiState.Status.Velocity) > 0))
+
+                    // Skip uninitialized states
+                    if (!targetAiState.Initialized) continue;
+
+                    // Skip own state
+                    if (aiState == targetAiState) continue;
+
+                    // Skip if states are far enough apart
+                    if (Vector3.DistanceSquared(aiState.Status.Position, targetAiState.Status.Position) > _configuration.Extra.AiParams.MinStateDistanceSquared) continue;
+
+                    // Despawn if cars are traveling in the same direction or that two-way traffic is enabled
+                    if (_configuration.Extra.AiParams.TwoWayTraffic || Vector3.Dot(aiState.Status.Velocity, targetAiState.Status.Velocity) > 0)
                     {
                         _statesToDespawn.Add(aiState);
-                        break; // Only add once per aiState to avoid duplicate despawning
                     }
+
                 }
             }
         }
@@ -160,7 +170,7 @@ public partial class EntryCar
         foreach (var state in _statesToDespawn)
         {
             state.Despawn();
-            Logger.Verbose("Removed close state from AI {SessionId}", SessionId);
+            Logger.Debug("Removed close state from AI {SessionId}", SessionId);
         }
     }
 
@@ -343,11 +353,11 @@ public partial class EntryCar
                     _aiStatesLock.ExitWriteLock();
                 }
 
-                Logger.Verbose("Removed state of Traffic {SessionId} due to overbooking reduction", SessionId);
+                Logger.Debug("Removed state of Traffic {SessionId} due to overbooking reduction", SessionId);
 
                 if (_aiStates.Count == 0)
                 {
-                    Logger.Verbose("Traffic {SessionId} has no states left, disconnecting", SessionId);
+                    Logger.Debug("Traffic {SessionId} has no states left, disconnecting", SessionId);
                     _entryCarManager.BroadcastPacket(new CarDisconnected { SessionId = SessionId });
                 }
 

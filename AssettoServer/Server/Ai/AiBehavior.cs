@@ -177,6 +177,7 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
     {
         using var context = _updateDurationTimer.NewTimer();
 
+        // === PHASE 1: Reset working collections ===
         _playerCars.Clear();
         _initializedAiStates.Clear();
         _uninitializedAiStates.Clear();
@@ -184,15 +185,17 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
         _aiMinDistanceToPlayer.Clear();
         _playerMinDistanceToAi.Clear();
 
+        // === PHASE 2: Categorize all cars (players vs AI) ===
         foreach (var entryCar in _entryCarManager.EntryCars)
         {
             var (currentSplinePointId, _) = _spline.WorldToSpline(entryCar.Status.Position);
             var drivingTheRightWay = Vector3.Dot(_spline.Operations.GetForwardVector(currentSplinePointId), entryCar.Status.Velocity) > 0;
 
-            if (!entryCar.AiControlled
-                && entryCar.Client?.HasSentFirstUpdate == true
-                && _sessionManager.ServerTimeMilliseconds - entryCar.LastActiveTime < _configuration.Extra.AiParams.PlayerAfkTimeoutMilliseconds
-                && (_configuration.Extra.AiParams.TwoWayTraffic || _configuration.Extra.AiParams.WrongWayTraffic || drivingTheRightWay))
+            // Identify players, fully connected, not AFK, and driving the right way
+            if (!entryCar.AiControlled  // Players
+                && entryCar.Client?.HasSentFirstUpdate == true  // fully connected
+                && _sessionManager.ServerTimeMilliseconds - entryCar.LastActiveTime < _configuration.Extra.AiParams.PlayerAfkTimeoutMilliseconds // not AFK
+                && (_configuration.Extra.AiParams.TwoWayTraffic || _configuration.Extra.AiParams.WrongWayTraffic || drivingTheRightWay)) // driving the right way
             {
                 _playerCars.Add(entryCar);
             }
@@ -203,6 +206,7 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
             }
         }
 
+        // === PHASE 3: Calculate distances between AI and players ===
         _aiStateCountMetric.Set(_initializedAiStates.Count);
 
         for (int i = 0; i < _initializedAiStates.Count; i++)
@@ -215,23 +219,28 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
             _playerMinDistanceToAi.Add(new KeyValuePair<EntryCar, float>(_playerCars[i], float.MaxValue));
         }
 
-        // Get minimum distance to a player for each AI
-        // Get minimum distance to AI for each player
+        // Calculate player offset positions
+        for (int i = 0; i < _playerCars.Count; i++)
+        {
+            if (_playerOffsetPositions.Count <= i)
+            {
+                var offsetPosition = _playerCars[i].Status.Position;
+
+                // If player is moving, offset their position in the direction of travel by PlayerPositionOffsetMeters
+                if (_playerCars[i].Status.Velocity != Vector3.Zero)
+                {
+                    offsetPosition += Vector3.Normalize(_playerCars[i].Status.Velocity) * _configuration.Extra.AiParams.PlayerPositionOffsetMeters;
+                }
+
+                _playerOffsetPositions.Add(offsetPosition);
+            }
+        }
+
+        // Calculate distance between every AI state and every player
         for (int i = 0; i < _initializedAiStates.Count; i++)
         {
             for (int j = 0; j < _playerCars.Count; j++)
             {
-                if (_playerOffsetPositions.Count <= j)
-                {
-                    var offsetPosition = _playerCars[j].Status.Position;
-                    if (_playerCars[j].Status.Velocity != Vector3.Zero)
-                    {
-                        offsetPosition += Vector3.Normalize(_playerCars[j].Status.Velocity) * _configuration.Extra.AiParams.PlayerPositionOffsetMeters;
-                    }
-
-                    _playerOffsetPositions.Add(offsetPosition);
-                }
-
                 var distanceSquared = Vector3.DistanceSquared(_initializedAiStates[i].Status.Position, _playerOffsetPositions[j]);
 
                 if (_aiMinDistanceToPlayer[i].Value > distanceSquared)
@@ -246,78 +255,67 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
             }
         }
         
-        // Order AI cars by their minimum distance to a player. Higher distance = higher chance for respawn
+        // Order AI cars by their minimum distance to a player.
         _aiMinDistanceToPlayer.Sort((a, b) => b.Value.CompareTo(a.Value));
 
+        // Add AI cars that are not too close to a player to the uninitialized AI states list
         foreach (var dist in _aiMinDistanceToPlayer)
         {
-            if (dist.Value > _configuration.Extra.AiParams.PlayerRadiusSquared
-                && _sessionManager.ServerTimeMilliseconds > dist.Key.SpawnProtectionEnds)
-            {
-                _uninitializedAiStates.Add(dist.Key);
-            }
+            // Skip AI cars that are too close to a player
+            if (dist.Value < _configuration.Extra.AiParams.PlayerRadiusSquared) continue;
+
+            // Skip AI cars that are protected from despawning
+            if (_sessionManager.ServerTimeMilliseconds < dist.Key.SpawnProtectionEnds) continue;
+
+            // Add AI car to the uninitialized AI states list
+            _uninitializedAiStates.Add(dist.Key);
         }
         
+        // Reorder the player cars by their minimum distance to an AI.
         if (_initializedAiStates.Count > 0 && _playerCars.Count > 0)
         {
             _playerCars.Clear();
-            // Order player cars by their minimum distance to an AI. Higher distance = higher chance for next AI spawn
+
+            // Order player cars by their minimum distance to an AI.
             _playerMinDistanceToAi.Sort((a, b) => b.Value.CompareTo(a.Value));
+
             for (int i = 0; i < _playerMinDistanceToAi.Count; i++)
             {
                 _playerCars.Add(_playerMinDistanceToAi[i].Key);
             }
         }
 
-        _playersToProcess.Clear();
-        _playersToProcess.AddRange(_playerCars);
-
-        while (_playersToProcess.Count > 0 && _uninitializedAiStates.Count > 0)
+        // Attempt to spawn one AI car per player
+        while (_playerCars.Count > 0 && _uninitializedAiStates.Count > 0)
         {
-
-            bool anySpawned = false;
-            _playersToRemove.Clear();
-
-            foreach (var targetPlayerCar in _playersToProcess)
+            int spawnPointId = -1;
+            while (spawnPointId < 0 && _playerCars.Count > 0)
             {
-                if (_uninitializedAiStates.Count == 0)
-                    break;
+                var targetPlayerCar = _playerCars.ElementAt(GetRandomWeighted(_playerCars.Count));
+                _playerCars.Remove(targetPlayerCar);
 
-                int spawnPointId = GetSpawnPoint(targetPlayerCar);
+                spawnPointId = GetSpawnPoint(targetPlayerCar);
+            }
 
-                if (spawnPointId < 0 || !_junctionEvaluator.TryNext(spawnPointId, out _))
-                {
-                    // If this player can't spawn anything, remove them to avoid infinite retries
-                    _playersToRemove.Add(targetPlayerCar);
+            // targetPlayerCar is not in proximity to the AI spline; skip
+            if (spawnPointId < 0)
+                continue;
+
+            // spawnPointId has no spline point after it; skip
+            if (!_junctionEvaluator.TryNext(spawnPointId, out _))
+                continue;
+
+            var previousAi = FindClosestAiState(spawnPointId, false);
+            var nextAi = FindClosestAiState(spawnPointId, true);
+
+            foreach (var targetAiState in _uninitializedAiStates)
+            {
+                if (!targetAiState.CanSpawn(spawnPointId, previousAi, nextAi))
                     continue;
-                }
 
-                var previousAi = FindClosestAiState(spawnPointId, false);
-                var nextAi = FindClosestAiState(spawnPointId, true);
+                targetAiState.Teleport(spawnPointId);
 
-                // Try to spawn an AI state for this player
-                foreach (var targetAiState in _uninitializedAiStates)
-                {
-                    if (!targetAiState.CanSpawn(spawnPointId, previousAi, nextAi))
-                        continue;
-
-                    targetAiState.Teleport(spawnPointId);
-                    _uninitializedAiStates.Remove(targetAiState);
-                    anySpawned = true;
-                    break; // Only spawn one AI state per player per iteration
-                }
-            }
-
-            // Remove players that can't spawn anything to prevent infinite retries
-            foreach (var player in _playersToRemove)
-            {
-                _playersToProcess.Remove(player);
-            }
-
-            // If no AI states were spawned in this iteration, break to prevent infinite loop
-            if (!anySpawned)
-            {
-                Log.Verbose("No AI states could be spawned, breaking spawn loop");
+                _uninitializedAiStates.Remove(targetAiState);
                 break;
             }
         }
