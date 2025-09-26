@@ -50,7 +50,7 @@ public partial class EntryCar
     public List<LaneSpawnBehavior>? AiAllowedLanes { get; set; }
     public float TyreDiameterMeters { get; set; }
     private readonly List<AiState> _aiStates = new List<AiState>();
-    private readonly List<AiState> _statesToDespawn = new List<AiState>(); // Reusable list to avoid allocations
+    private readonly List<AiState> _statesToProcess = new List<AiState>();
     private readonly ReaderWriterLockSlim _aiStatesLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
     
     private readonly Func<EntryCar, AiState> _aiStateFactory;
@@ -125,40 +125,18 @@ public partial class EntryCar
         }
     }
 
-    public void RemoveUnsafeStates()
+    public void RemoveUnsafeStates(List<KeyValuePair<AiState, float>>? _aiMinDistanceToPlayer = null)
     {
-        _statesToDespawn.Clear(); // Reuse the existing list
+        _statesToProcess.Clear();
+        AiState? stateToRemove = null;
 
         _aiStatesLock.EnterReadLock();
         try
         {
-            for (var i = 0; i < _aiStates.Count; i++)
+            foreach (var aiState in _aiStates)
             {
-                var aiState = _aiStates[i];
-
-                // Skip uninitialized states
-                if (!aiState.Initialized) continue;
-
-                for (var j = 0; j < _aiStates.Count; j++)
-                {
-                    var targetAiState = _aiStates[j];
-
-                    // Skip uninitialized states
-                    if (!targetAiState.Initialized) continue;
-
-                    // Skip own state
-                    if (aiState == targetAiState) continue;
-
-                    // Skip if states are far enough apart
-                    if (Vector3.DistanceSquared(aiState.Status.Position, targetAiState.Status.Position) > _configuration.Extra.AiParams.MinStateDistanceSquared) continue;
-
-                    // Despawn if cars are traveling in the same direction or that two-way traffic is enabled
-                    if (_configuration.Extra.AiParams.TwoWayTraffic || Vector3.Dot(aiState.Status.Velocity, targetAiState.Status.Velocity) > 0)
-                    {
-                        _statesToDespawn.Add(aiState);
-                    }
-
-                }
+                if (aiState.Initialized)
+                    _statesToProcess.Add(aiState);
             }
         }
         finally
@@ -166,11 +144,52 @@ public partial class EntryCar
             _aiStatesLock.ExitReadLock();
         }
 
-        // Despawn outside the lock to avoid deadlock with SlowestAiStates
-        foreach (var state in _statesToDespawn)
+        foreach (var aiState in _statesToProcess)
         {
-            state.Despawn();
-            Logger.Debug("Removed close state from AI {SessionId}", SessionId);
+            foreach (var targetAiState in _statesToProcess)
+            {
+                // Skip own state
+                if (aiState == targetAiState) continue;
+
+                // Skip if states are far enough apart
+                if (Vector3.DistanceSquared(aiState.Status.Position, targetAiState.Status.Position) > _configuration.Extra.AiParams.MinStateDistanceSquared) continue;
+
+                // Despawn if cars are traveling in the same direction or that two-way traffic is enabled
+                if (_configuration.Extra.AiParams.TwoWayTraffic || Vector3.Dot(aiState.Status.Velocity, targetAiState.Status.Velocity) > 0)
+                {
+                    // If _aiMinDistanceToPlayer is provided, use it to despawn the state furthest from a player
+                    if (_aiMinDistanceToPlayer != null)
+                    {
+                        for (int i = 0; i < _aiMinDistanceToPlayer.Count; i++)
+                        {
+                            if (_aiMinDistanceToPlayer[i].Key == aiState)
+                            {
+                                stateToRemove = aiState;
+                                break;
+                            }
+                            else if (_aiMinDistanceToPlayer[i].Key == targetAiState)
+                            {
+                                stateToRemove = targetAiState;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        stateToRemove = aiState;
+                    }
+                }
+
+                // The strategy here will be to only remove one state per call.
+                // It's extremely unlikely anyway to find two states of one AI car that qualify for safety-removal.
+                // If there are, it can be removed next Update().
+                if (stateToRemove != null)
+                {
+                    stateToRemove.Despawn();
+                    Logger.Debug("Removed close state from AI {SessionId}", SessionId);
+                    return;
+                }
+            }
         }
     }
 

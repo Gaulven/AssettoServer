@@ -164,6 +164,7 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
     }
     
     private readonly List<EntryCar> _playerCars = new();
+    private readonly List<EntryCar> _aiCars = new();
     private readonly List<AiState> _initializedAiStates = new();
     private readonly List<AiState> _uninitializedAiStates = new();
     private readonly List<Vector3> _playerOffsetPositions = new();
@@ -173,12 +174,14 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
     private readonly List<EntryCar> _playersToRemove = new();
     private readonly List<int> _sameDirectionLanes = new();
     private readonly List<int> _oppositeDirectionLanes = new();
+    private readonly List<AiState> _toPruneAiStates = new();
     private void Update()
     {
         using var context = _updateDurationTimer.NewTimer();
 
         // === PHASE 1: Reset working collections ===
         _playerCars.Clear();
+        _aiCars.Clear();
         _initializedAiStates.Clear();
         _uninitializedAiStates.Clear();
         _playerOffsetPositions.Clear();
@@ -201,14 +204,23 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
             }
             else if (entryCar.AiControlled)
             {
-                entryCar.RemoveUnsafeStates();
+                _aiCars.Add(entryCar);
                 entryCar.GetInitializedStates(_initializedAiStates, _uninitializedAiStates);
             }
         }
 
-        // === PHASE 3: Calculate distances between AI and players ===
+        // If there are no qualifying player cars, there's no need for AI cars.
+        if (_playerCars.Count == 0)
+        {
+            // Despawn all AI cars
+            foreach (var aiState in _initializedAiStates)
+                aiState.Despawn();
+            return;
+        }
+
         _aiStateCountMetric.Set(_initializedAiStates.Count);
 
+        // === PHASE 3: Calculate distances between AI and players ===
         for (int i = 0; i < _initializedAiStates.Count; i++)
         {
             _aiMinDistanceToPlayer.Add(new KeyValuePair<AiState, float>(_initializedAiStates[i], float.MaxValue));
@@ -255,8 +267,13 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
             }
         }
         
-        // Order AI cars by their minimum distance to a player.
+        // Order AI states by their distance to any player, in descending order.
         _aiMinDistanceToPlayer.Sort((a, b) => b.Value.CompareTo(a.Value));
+
+        // === PHASE 4: Remove unsafe AI states ===
+        foreach (var entryCar in _aiCars)
+            entryCar.RemoveUnsafeStates(_aiMinDistanceToPlayer);
+        _initializedAiStates.RemoveAll(x => !x.Initialized);
 
         // Add AI cars that are not too close to a player to the uninitialized AI states list
         foreach (var dist in _aiMinDistanceToPlayer)
@@ -276,7 +293,8 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
         {
             _playerCars.Clear();
 
-            // Order player cars by their minimum distance to an AI.
+            // Order player cars by their distance to an AI.
+            // List is sorted in descending order.
             _playerMinDistanceToAi.Sort((a, b) => b.Value.CompareTo(a.Value));
 
             for (int i = 0; i < _playerMinDistanceToAi.Count; i++)
