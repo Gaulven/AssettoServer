@@ -37,7 +37,9 @@ public class AiState
     public float CurrentSpeed { get; private set; }
     public float TargetSpeed { get; private set; }
     public float InitialMaxSpeed { get; private set; }
+    public float SpeedVariation { get; private set; }
     public float MaxSpeed { get; private set; }
+    public bool IsFastLane { get; private set; }
     public Color Color { get; private set; }
     public byte SpawnCounter { get; private set; }
     public float ClosestAiObstacleDistance { get; private set; }
@@ -111,19 +113,38 @@ public class AiState
         _spline.SlowestAiStates.Leave(CurrentSplinePointId, this);
     }
 
-    private void SetRandomSpeed()
+    private void SetSpeed(bool update = false)
     {
+        float fastLaneOffset;
         float variation = _configuration.Extra.AiParams.MaxSpeedMs * _configuration.Extra.AiParams.MaxSpeedVariationPercent;
 
-        float fastLaneOffset = 0;
-        if (_spline.Points[CurrentSplinePointId].LeftId >= 0)
+        if (!update)
         {
-            fastLaneOffset = _configuration.Extra.AiParams.RightLaneOffsetMs;
+            IsFastLane = _spline.Points[CurrentSplinePointId].LeftId >= 0;
+            SpeedVariation = -(variation / 2) + (float)Random.Shared.NextDouble() * variation;
         }
-        InitialMaxSpeed = _configuration.Extra.AiParams.MaxSpeedMs + fastLaneOffset - (variation / 2) + (float)Random.Shared.NextDouble() * variation;
-        CurrentSpeed = InitialMaxSpeed;
-        TargetSpeed = InitialMaxSpeed;
+
+        fastLaneOffset = IsFastLane ? _configuration.Extra.AiParams.RightLaneOffsetMs : 0;
+
+        InitialMaxSpeed = _configuration.Extra.AiParams.MaxSpeedMs + fastLaneOffset + SpeedVariation;
         MaxSpeed = InitialMaxSpeed;
+
+        if (!update)
+        {
+            CurrentSpeed = InitialMaxSpeed;
+            TargetSpeed = InitialMaxSpeed;
+        }
+    }
+
+    public void UpdateSpeed()
+    {
+        bool currentlyFastLane = _spline.Points[CurrentSplinePointId].LeftId >= 0;
+
+        if (IsFastLane != currentlyFastLane)
+        {
+            IsFastLane = currentlyFastLane;
+            SetSpeed(update: true);
+        }
     }
 
     private void SetRandomColor()
@@ -142,7 +163,7 @@ public class AiState
             
         CalculateTangents();
         
-        SetRandomSpeed();
+        SetSpeed();
         SetRandomColor();
 
         var minDist = _configuration.Extra.AiParams.MinAiSafetyDistanceSquared;
@@ -367,7 +388,8 @@ public class AiState
                 }
             }
 
-            float maxCorneringSpeedSquared = PhysicsUtils.CalculateMaxCorneringSpeedSquared(point.Radius, EntryCar.AiCorneringSpeedFactor);
+            float corneringFactor = IsFastLane ? EntryCar.AiRightLaneCorneringSpeedFactor : EntryCar.AiCorneringSpeedFactor;
+            float maxCorneringSpeedSquared = PhysicsUtils.CalculateMaxCorneringSpeedSquared(point.Radius, corneringFactor);
             if (maxCorneringSpeedSquared < currentSpeedSquared)
             {
                 float maxCorneringSpeed = MathF.Sqrt(maxCorneringSpeedSquared);

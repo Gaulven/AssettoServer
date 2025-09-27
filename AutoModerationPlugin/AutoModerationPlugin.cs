@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using System.Reflection;
+using AssettoServer.Network.Tcp;
 using AssettoServer.Server;
 using AssettoServer.Server.Ai.Splines;
 using AssettoServer.Server.Configuration;
@@ -26,14 +27,32 @@ public class AutoModerationPlugin : CriticalBackgroundService, IAssettoServerAut
     private readonly AutoModerationConfiguration _configuration;
     private readonly EntryCarManager _entryCarManager;
     private readonly WeatherManager _weatherManager;
+    private readonly SessionManager _sessionManager;
     private readonly Func<EntryCar, EntryCarAutoModeration> _entryCarAutoModerationFactory;
     private readonly AiSpline? _aiSpline;
 
     private readonly float _laneRadiusSquared;
 
+
+
+    private void TeleportToPits(ACTcpClient player, string reason)
+    {
+        Log.Information("{PlayerName} was teleported to pits. Reason: {Reason}", player.Name, reason);
+        var packet = new CurrentSessionUpdate
+        {
+            CurrentSession = _sessionManager.CurrentSession.Configuration,
+            Grid = _sessionManager.CurrentSession.Grid,
+            TrackGrip = _weatherManager.CurrentWeather.TrackGrip,
+            StartTime = _sessionManager.CurrentSession.StartTimeMilliseconds - player.EntryCar.TimeOffset
+        };
+        player.SendPacket(packet);
+        player.SendPacket(new ChatMessage { SessionId = 255, Message = $"You have been teleported to the pits for {reason}." });
+    }
+
     public AutoModerationPlugin(AutoModerationConfiguration configuration,
         EntryCarManager entryCarManager,
         WeatherManager weatherManager,
+        SessionManager sessionManager,
         ACServerConfiguration serverConfiguration,
         CSPServerScriptProvider scriptProvider,
         Func<EntryCar, EntryCarAutoModeration> entryCarAutoModerationFactory,
@@ -43,6 +62,7 @@ public class AutoModerationPlugin : CriticalBackgroundService, IAssettoServerAut
         _configuration = configuration;
         _entryCarManager = entryCarManager;
         _weatherManager = weatherManager;
+        _sessionManager = sessionManager;
         _serverConfiguration = serverConfiguration;
         _entryCarAutoModerationFactory = entryCarAutoModerationFactory;
         _aiSpline = aiSpline;
@@ -107,12 +127,23 @@ public class AutoModerationPlugin : CriticalBackgroundService, IAssettoServerAut
                             instance.NoLightSeconds++;
                             if (instance.NoLightSeconds > _configuration.NoLightsKick.DurationSeconds)
                             {
-                                _ = _entryCarManager.KickAsync(client, "driving without lights");
+                                if (instance.NoLightsPitCount < _configuration.NoLightsKick.PitsBeforeKick)
+                                {
+                                    TeleportToPits(client, "driving without lights");
+                                    instance.NoLightsPitCount++;
+                                }
+                                else
+                                {
+                                    _ = _entryCarManager.KickAsync(client, "driving without lights");
+                                }
                             }
                             else if (!instance.HasSentNoLightWarning && instance.NoLightSeconds > _configuration.NoLightsKick.DurationSeconds / 2)
                             {
                                 instance.HasSentNoLightWarning = true;
-                                client.SendPacket(new ChatMessage { SessionId = 255, Message = "It is currently night, please turn on your lights or you will be kicked." });
+                                string warningMessage = instance.NoLightsPitCount < _configuration.NoLightsKick.PitsBeforeKick
+                                    ? $"It is currently night, please turn on your lights or you will be teleported to pits."
+                                    : "It is currently night, please turn on your lights or you will be kicked.";
+                                client.SendPacket(new ChatMessage { SessionId = 255, Message = warningMessage });
                             }
                         }
                         else
@@ -135,12 +166,23 @@ public class AutoModerationPlugin : CriticalBackgroundService, IAssettoServerAut
                             instance.WrongWaySeconds++;
                             if (instance.WrongWaySeconds > _configuration.WrongWayKick.DurationSeconds)
                             {
-                                _ = _entryCarManager.KickAsync(client, "driving the wrong way");
+                                if (instance.WrongWayPitCount < _configuration.WrongWayKick.PitsBeforeKick)
+                                {
+                                    TeleportToPits(client, "driving the wrong way");
+                                    instance.WrongWayPitCount++;
+                                }
+                                else
+                                {
+                                    _ = _entryCarManager.KickAsync(client, "driving the wrong way");
+                                }
                             }
                             else if (!instance.HasSentWrongWayWarning && instance.WrongWaySeconds > _configuration.WrongWayKick.DurationSeconds / 2)
                             {
                                 instance.HasSentWrongWayWarning = true;
-                                client.SendPacket(new ChatMessage { SessionId = 255, Message = "You are driving the wrong way! Turn around or you will be kicked." });
+                                string warningMessage = instance.WrongWayPitCount < _configuration.WrongWayKick.PitsBeforeKick
+                                    ? $"You are driving the wrong way! Turn around or you will be teleported to pits."
+                                    : "You are driving the wrong way! Turn around or you will be kicked.";
+                                client.SendPacket(new ChatMessage { SessionId = 255, Message = warningMessage });
                             }
                         }
                         else
@@ -161,12 +203,23 @@ public class AutoModerationPlugin : CriticalBackgroundService, IAssettoServerAut
                             instance.BlockingRoadSeconds++;
                             if (instance.BlockingRoadSeconds > _configuration.BlockingRoadKick.DurationSeconds)
                             {
-                                _ = _entryCarManager.KickAsync(client, "blocking the road");
+                                if (instance.BlockingRoadPitCount < _configuration.BlockingRoadKick.PitsBeforeKick)
+                                {
+                                    TeleportToPits(client, "blocking the road");
+                                    instance.BlockingRoadPitCount++;
+                                }
+                                else
+                                {
+                                    _ = _entryCarManager.KickAsync(client, "blocking the road");
+                                }
                             }
                             else if (!instance.HasSentBlockingRoadWarning && instance.BlockingRoadSeconds > _configuration.BlockingRoadKick.DurationSeconds / 2)
                             {
                                 instance.HasSentBlockingRoadWarning = true;
-                                client.SendPacket(new ChatMessage { SessionId = 255, Message = "You are blocking the road! Please move or teleport to pits, or you will be kicked." });
+                                string warningMessage = instance.BlockingRoadPitCount < _configuration.BlockingRoadKick.PitsBeforeKick
+                                    ? $"You are blocking the road! Please move or you will be teleported to pits."
+                                    : "You are blocking the road! Please move or teleport to pits, or you will be kicked.";
+                                client.SendPacket(new ChatMessage { SessionId = 255, Message = warningMessage });
                             }
                         }
                         else

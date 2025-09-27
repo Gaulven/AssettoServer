@@ -248,9 +248,13 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
             }
         }
 
-        // Calculate distance between every AI state and every player
+        // Scan initialized AI states for multiple purposes.
         for (int i = 0; i < _initializedAiStates.Count; i++)
         {
+            // Update the speed of every initialised AI.
+            _initializedAiStates[i].UpdateSpeed();
+
+            // Calculate the distance between every initialized AI and every player.
             for (int j = 0; j < _playerCars.Count; j++)
             {
                 var distanceSquared = Vector3.DistanceSquared(_initializedAiStates[i].Status.Position, _playerOffsetPositions[j]);

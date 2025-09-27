@@ -33,6 +33,7 @@ public partial class EntryCar
     public float AiAcceleration { get; set; }
     public float AiDeceleration { get; set; }
     public float AiCorneringSpeedFactor { get; set; }
+    public float AiRightLaneCorneringSpeedFactor { get; set; }
     public float AiCorneringBrakeDistanceFactor { get; set; }
     public float AiCorneringBrakeForceFactor { get; set; }
     public float AiSplineHeightOffsetMeters { get; set; }
@@ -71,6 +72,7 @@ public partial class EntryCar
         AiAcceleration = _configuration.Extra.AiParams.DefaultAcceleration;
         AiDeceleration = _configuration.Extra.AiParams.DefaultDeceleration;
         AiCorneringSpeedFactor = _configuration.Extra.AiParams.CorneringSpeedFactor;
+        AiRightLaneCorneringSpeedFactor = _configuration.Extra.AiParams.RightLaneCorneringSpeedFactor;
         AiCorneringBrakeDistanceFactor = _configuration.Extra.AiParams.CorneringBrakeDistanceFactor;
         AiCorneringBrakeForceFactor = _configuration.Extra.AiParams.CorneringBrakeForceFactor;
         TyreDiameterMeters = _configuration.Extra.AiParams.TyreDiameterMeters;
@@ -95,6 +97,8 @@ public partial class EntryCar
                     AiDeceleration = carOverrides.Deceleration.Value;
                 if (carOverrides.CorneringSpeedFactor.HasValue)
                     AiCorneringSpeedFactor = carOverrides.CorneringSpeedFactor.Value;
+                if (carOverrides.RightLaneCorneringSpeedFactor.HasValue)
+                    AiRightLaneCorneringSpeedFactor = carOverrides.RightLaneCorneringSpeedFactor.Value;
                 if (carOverrides.CorneringBrakeDistanceFactor.HasValue)
                     AiCorneringBrakeDistanceFactor = carOverrides.CorneringBrakeDistanceFactor.Value;
                 if (carOverrides.CorneringBrakeForceFactor.HasValue)

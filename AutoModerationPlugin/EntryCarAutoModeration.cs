@@ -13,12 +13,15 @@ public class EntryCarAutoModeration
 
     public int NoLightSeconds { get; set; }
     public bool HasSentNoLightWarning { get; set; }
+    public int NoLightsPitCount { get; set; }
 
     public int WrongWaySeconds { get; set; }
     public bool HasSentWrongWayWarning { get; set; }
+    public int WrongWayPitCount { get; set; }
     
     public int BlockingRoadSeconds { get; set; }
     public bool HasSentBlockingRoadWarning { get; set; }
+    public int BlockingRoadPitCount { get; set; }
     
     public Flags CurrentFlags { get; set; }
 
@@ -40,6 +43,9 @@ public class EntryCarAutoModeration
         BlockingRoadSeconds = 0;
         HasSentBlockingRoadWarning = false;
         CurrentFlags = 0;
+        NoLightsPitCount = 0;
+        WrongWayPitCount = 0;
+        BlockingRoadPitCount = 0;
     }
 
     public void UpdateSplinePoint()

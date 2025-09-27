@@ -280,6 +280,9 @@ public partial class AiParams : ObservableObject
     private float _corneringSpeedFactor = 0.65f;
     
     [ObservableProperty]
+    [property: YamlMember(Description = "AI cornering speed factor for fast lanes (right lanes). Lower = AI cars will drive slower around corners in fast lanes.")]
+    private float _rightLaneCorneringSpeedFactor = 0.65f;
+    [ObservableProperty]
     [property: YamlMember(Description = "AI cornering brake distance factor. Lower = AI cars will brake later for corners.")]
     private float _corneringBrakeDistanceFactor = 3;
     
@@ -332,6 +335,7 @@ public partial class AiParams : ObservableObject
             AllowedLanes = new List<LaneSpawnBehavior> { LaneSpawnBehavior.Left, LaneSpawnBehavior.Middle, LaneSpawnBehavior.Right },
             MaxOverbooking = 1,
             CorneringSpeedFactor = 0.5f,
+            RightLaneCorneringSpeedFactor = 0.6f,
             CorneringBrakeDistanceFactor = 3,
             CorneringBrakeForceFactor = 0.5f,
             EngineIdleRpm = 800,
@@ -386,6 +390,8 @@ public class CarSpecificOverrides
     public float? Deceleration { get; init; }
     [YamlMember(Description = "AI cornering speed factor. Lower = AI cars will drive slower around corners.")]
     public float? CorneringSpeedFactor { get; init; }
+    [YamlMember(Description = "AI cornering speed factor for fast lanes (right lanes). Lower = AI cars will drive slower around corners in fast lanes.")]
+    public float? RightLaneCorneringSpeedFactor { get; init; }
     [YamlMember(Description = "AI cornering brake distance factor. Lower = AI cars will brake later for corners.")]
     public float? CorneringBrakeDistanceFactor { get; init; }
     [YamlMember(Description = "AI cornering brake force factor. This is multiplied with Deceleration. Lower = AI cars will brake less hard for corners.")]
