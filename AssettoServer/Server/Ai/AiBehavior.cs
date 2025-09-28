@@ -33,6 +33,8 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
     private readonly Summary _updateDurationTimer;
     private readonly Summary _obstacleDetectionDurationTimer;
 
+    private readonly float[] _playerDependentTrafficLookup;
+
     public AiBehavior(SessionManager sessionManager,
         ACServerConfiguration configuration,
         EntryCarManager entryCarManager,
@@ -65,6 +67,39 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
 
         _entryCarManager.ClientDisconnected += OnClientDisconnected;
         _configuration.Extra.AiParams.PropertyChanged += (_, _) => AdjustOverbooking();
+
+        // Initialize player-dependent traffic density lookup table
+        _playerDependentTrafficLookup = CalculatePlayerDependentTrafficLookup();
+    }
+
+    private float[] CalculatePlayerDependentTrafficLookup()
+    {
+        int maxPlayers = _configuration.Server.MaxClients;
+        var lookup = new float[maxPlayers + 1];
+
+        for (int i = 0; i <= maxPlayers; i++)
+            lookup[i] = 1.0f;
+
+        if (_configuration.Extra.AiParams.PlayerDependentTrafficOn)
+        {
+            float strength = _configuration.Extra.AiParams.PlayerDependentTrafficStrength;
+            int threshold = _configuration.Extra.AiParams.PlayerDependentTrafficThreshold;
+
+            for (int playerCount = threshold; playerCount <= maxPlayers; playerCount++)
+            {
+                // Apply formula: y = S / S^(x-(t-2))
+                // Where y = adjustment multiplied by traffic density
+                // Where x = playerCount
+                // Where t = threshold representing the player count when material adjustment begins
+                // Example: A threshold of 5 needs to cross y = 1.0 at a player count of 4, which requires that we subtract 3 (i.e. 5 - 2) from the player count.
+                // Where S = strength, functionally this is the number that density is divided by iteratively to get the next density in the list.
+                float exponent = playerCount - (threshold - 2);
+                float adjustment = strength / MathF.Pow(strength, exponent);
+                lookup[playerCount] = adjustment;
+            }
+        }
+
+        return lookup;
     }
 
     private static void OnCollision(ACTcpClient sender, CollisionEventArgs args)
@@ -576,14 +611,21 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
             Log.Debug("AI Slot overbooking update - no AI slots available");
             return;
         }
-            
-        int targetAiCount = Math.Min(playerCount * Math.Min((int)Math.Round(_configuration.Extra.AiParams.AiPerPlayerTargetCount * _configuration.Extra.AiParams.TrafficDensity), aiSlots.Count), _configuration.Extra.AiParams.MaxAiTargetCount);
+
+        // Calculate effective traffic density using lookup table
+        // Add fake players for testing purposes
+        int adjustedPlayerCount = playerCount + _configuration.Extra.AiParams.PlayerDependentTrafficDensityFakePlayers;
+        int clampedPlayerCount = Math.Min(adjustedPlayerCount, _playerDependentTrafficLookup.Length - 1);
+        float adjustment = _playerDependentTrafficLookup[clampedPlayerCount];
+        float effectiveTrafficDensity = _configuration.Extra.AiParams.TrafficDensity * adjustment;
+
+        int targetAiCount = Math.Min(playerCount * Math.Min((int)Math.Round(_configuration.Extra.AiParams.AiPerPlayerTargetCount * effectiveTrafficDensity), aiSlots.Count), _configuration.Extra.AiParams.MaxAiTargetCount);
 
         int overbooking = targetAiCount / aiSlots.Count;
         int rest = targetAiCount % aiSlots.Count;
-            
-        Log.Debug("AI Slot overbooking update - No. players: {NumPlayers} - No. AI Slots: {NumAiSlots} - Target AI count: {TargetAiCount} - Overbooking: {Overbooking} - Rest: {Rest}", 
-            playerCount, aiSlots.Count, targetAiCount, overbooking, rest);
+
+        Log.Debug("AI Slot overbooking update - No. players: {NumPlayers} - No. AI Slots: {NumAiSlots} - Target AI count: {TargetAiCount} - Overbooking: {Overbooking} - Rest: {Rest} - Effective density: {EffectiveDensity}",
+            playerCount, aiSlots.Count, targetAiCount, overbooking, rest, effectiveTrafficDensity);
 
         for (int i = 0; i < aiSlots.Count; i++)
         {

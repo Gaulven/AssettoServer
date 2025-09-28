@@ -325,6 +325,18 @@ public partial class AiParams : ObservableObject
     [YamlMember(Description = "Override some settings for newly spawned cars based on the number of lanes")]
     public Dictionary<int, LaneCountSpecificOverrides> LaneCountSpecificOverrides { get; set; } = new();
 
+    [YamlMember(Description = "Enable player-dependent traffic density adjustment. When enabled, traffic density will decrease as more players are active.")]
+    public bool PlayerDependentTrafficOn { get; set; } = false;
+
+    [YamlMember(Description = "The number of active players at which point the traffic density begins to be adjusted. Only applies when PlayerDependentTrafficOn is true.")]
+    public int PlayerDependentTrafficThreshold { get; set; } = 2;
+
+    [YamlMember(Description = "The strength of the traffic density adjustment. Values > 1.0 create exponential decline. 1.05 is recommended for steady decline. 1.0 = no adjustment.")]
+    public float PlayerDependentTrafficStrength { get; set; } = 1.1f;
+
+    [YamlMember(Description = "Number of fake players to add for testing player-dependent traffic density. Only affects traffic density calculation, not actual player slots.")]
+    public int PlayerDependentTrafficDensityFakePlayers { get; set; } = 0;
+
     [YamlMember(Description = "Override some settings for specific car models")]
     public List<CarSpecificOverrides> CarSpecificOverrides { get; init; } = [
         new CarSpecificOverrides
