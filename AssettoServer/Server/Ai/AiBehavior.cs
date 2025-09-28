@@ -613,9 +613,7 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
         }
 
         // Calculate effective traffic density using lookup table
-        // Add fake players for testing purposes
-        int adjustedPlayerCount = playerCount + _configuration.Extra.AiParams.PlayerDependentTrafficDensityFakePlayers;
-        int clampedPlayerCount = Math.Min(adjustedPlayerCount, _playerDependentTrafficLookup.Length - 1);
+        int clampedPlayerCount = Math.Min(playerCount, _playerDependentTrafficLookup.Length - 1);
         float adjustment = _playerDependentTrafficLookup[clampedPlayerCount];
         float effectiveTrafficDensity = _configuration.Extra.AiParams.TrafficDensity * adjustment;
 
