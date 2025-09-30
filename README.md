@@ -1,27 +1,17 @@
-# AssettoServer [![Build status](https://img.shields.io/github/actions/workflow/status/compujuckel/AssettoServer/dotnet.yml?logo=github&branch=master)](https://github.com/compujuckel/AssettoServer/actions/workflows/dotnet.yml) [![Discord](https://img.shields.io/discord/890676433746268231?logo=discord&label=Discord&color=7289da)](https://discord.gg/uXEXRcSkyz) [![Docker Hub](https://img.shields.io/docker/v/compujuckel/assettoserver?logo=docker&label=Docker)](https://hub.docker.com/r/compujuckel/assettoserver)
+# AssettoServer
 
 ## About
 AssettoServer is a custom game server for Assetto Corsa developed with freeroam in mind. It greatly improves upon the default game server by fixing various security issues and providing new features like AI traffic and dynamic weather.
 
-Race/Quali sessions and lap times are not supported yet. Only use this if you want to run a practice-only freeroam server.
-
-This is a fork of https://github.com/Niewiarowski/AssettoServer.
-
-## Documentation
-For more information on configuration, admin commands, etc. also check out our [website](https://assettoserver.org/).
-
-## Getting help
-If you have trouble setting up a server feel free to visit the #server-troubleshooting channel on our [Discord](https://discord.gg/uXEXRcSkyz).
-Alternatively you can ask questions here: https://github.com/compujuckel/AssettoServer/discussions/categories/help
-
-**Please don't use the Issue tracker for installation help or configuration questions. Also make sure to read the documentation first before asking questions that are already answered there!**
+This is a fork of AssettoServer 0.0.54 from https://github.com/compujuckel/AssettoServer/. It is distributed here for AGPL license adherence and collaboration purposes. Version 0.0.54 is currently chosen for plugin compatibility purposes. Refer to the origin repository for general information about the server.
 
 ## License
-AssettoServer is licensed under the GNU Affero General Public License v3.0, see [LICENSE](https://github.com/compujuckel/AssettoServer/blob/master/LICENSE) for more info.  
+AssettoServer is licensed under the GNU Affero General Public License v3.0, see [LICENSE](https://github.com/Gaulven/AssettoServer/blob/master/LICENSE) for more info.
 Additionally, you must preserve the legal notices and author attributions present in the server.
 
 ```
 Copyright (C)  2022 Niewiarowski, compujuckel
+Copyright (C)  2025 Gaulven
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published
