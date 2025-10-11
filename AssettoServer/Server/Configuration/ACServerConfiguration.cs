@@ -132,7 +132,6 @@ public class ACServerConfiguration
         
         Extra = ACExtraConfiguration.FromFile(extraCfgPath);
 
-        // Load server description from file if path is specified (relative to working directory)
         if (!string.IsNullOrEmpty(Extra.ServerDescriptionPath))
         {
             string serverDescriptionPath = Path.GetFullPath(Extra.ServerDescriptionPath);
