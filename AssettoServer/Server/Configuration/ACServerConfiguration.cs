@@ -20,7 +20,8 @@ public class ACServerConfiguration
     public List<SessionConfiguration> Sessions { get; }
     [YamlIgnore] public string FullTrackName { get; }
     [YamlIgnore] public CSPTrackOptions CSPTrackOptions { get; }
-    [YamlIgnore] public string WelcomeMessage { get; } = "";
+    [YamlIgnore] public string WelcomeMessage { get; private set; } = "";
+    [YamlIgnore] public string ServerDescription { get; private set; } = "";
     public ACExtraConfiguration Extra { get; private set; } = new();
     [YamlIgnore] public CMContentConfiguration? ContentConfiguration { get; private set; }
     public string ServerVersion { get; }
@@ -131,6 +132,21 @@ public class ACServerConfiguration
         
         Extra = ACExtraConfiguration.FromFile(extraCfgPath);
 
+        // Load server description from file if path is specified (relative to working directory)
+        if (!string.IsNullOrEmpty(Extra.ServerDescriptionPath))
+        {
+            string serverDescriptionPath = Path.GetFullPath(Extra.ServerDescriptionPath);
+            if (File.Exists(serverDescriptionPath))
+            {
+                ServerDescription = File.ReadAllText(serverDescriptionPath);
+                Log.Debug("Loaded server description from {Path}", serverDescriptionPath);
+            }
+            else
+            {
+                Log.Warning("Server description file not found at {Path}", serverDescriptionPath);
+            }
+        }
+
         if (Regex.IsMatch(Server.Name, @"x:\w+$"))
         {
             const string errorMsg =
@@ -175,6 +191,28 @@ public class ACServerConfiguration
         }
 
         return (propertyInfo, parent);
+    }
+
+    /// <summary>
+    /// Updates the server description content. This is used by the ServerDescriptionWatcher
+    /// to dynamically reload the server description from the file.
+    /// </summary>
+    /// <param name="newServerDescription">The new server description content</param>
+    public void UpdateServerDescription(string newServerDescription)
+    {
+        ServerDescription = newServerDescription;
+        Log.Debug("Server description updated, new length: {Length} characters", newServerDescription.Length);
+    }
+
+    /// <summary>
+    /// Updates the welcome message content. This is used by the WelcomeMessageWatcher
+    /// to dynamically reload the welcome message from the file.
+    /// </summary>
+    /// <param name="newWelcomeMessage">The new welcome message content</param>
+    public void UpdateWelcomeMessage(string newWelcomeMessage)
+    {
+        WelcomeMessage = newWelcomeMessage;
+        Log.Debug("Welcome message updated, new length: {Length} characters", newWelcomeMessage.Length);
     }
 
     public bool SetProperty(string key, string value)

@@ -43,8 +43,8 @@ public partial class ACExtraConfiguration : ObservableObject
     public int OutsideNetworkBubbleRefreshRateHz { get; init; } = 4;
     [YamlMember(Description = "Enable server details in CM. Required for server description")]
     public bool EnableServerDetails { get; set; } = true;
-    [YamlMember(Description = "Server description shown in Content Manager. EnableServerDetails must be on")]
-    public string ServerDescription { get; set; } = "";
+    [YamlMember(Description = "Path to server description file shown in Content Manager. EnableServerDetails must be on. Relative to server base folder.")]
+    public string ServerDescriptionPath { get; set; } = "";
     [YamlMember(Description = "Link server time to real map time. For correct timezones there must be an entry for the map here: https://github.com/ac-custom-shaders-patch/acc-extension-config/blob/master/config/data_track_params.ini")]
     public bool EnableRealTime { get; set; } = false;
     [YamlMember(Description = "Enable new CSP weather handling. Allows rain and smooth weather transitions. Requires CSP 0.1.76+")]
