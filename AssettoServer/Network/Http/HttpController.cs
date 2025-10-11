@@ -172,7 +172,7 @@ public class HttpController : ControllerBase
             CurrentWeatherId = _weatherManager.CurrentWeather.Type.WeatherFxType == WeatherFxType.None ? _weatherManager.CurrentWeather.Type.Graphics : _weatherManager.CurrentWeather.Type.WeatherFxType.ToString(),
             WindSpeed = (int)_weatherManager.CurrentWeather.WindSpeed,
             WindDirection = _weatherManager.CurrentWeather.WindDirection,
-            Description = _configuration.Extra.ServerDescription,
+            Description = _configuration.ServerDescription,
             Grip = _weatherManager.CurrentWeather.TrackGrip * 100,
             Features = _cspFeatureManager.Features.Keys,
             PoweredBy = _cache.PoweredBy

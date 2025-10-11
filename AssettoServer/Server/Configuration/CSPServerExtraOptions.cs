@@ -17,20 +17,25 @@ public class CSPServerExtraOptions
 
     public event EventHandler<ACTcpClient, WelcomeMessageSentEventArgs>? WelcomeMessageSent; 
 
-    public string WelcomeMessage { get; set; }
-    public string ExtraOptions { get; set; }
+    public string WelcomeMessage { get; set; } = "";
+    public string ExtraOptions { get; set; } = "";
 
     public CSPServerExtraOptions(ACServerConfiguration configuration)
     {
         _configuration = configuration;
+        LoadWelcomeMessage();
+    }
+
+    private void LoadWelcomeMessage()
+    {
         (WelcomeMessage, ExtraOptions) = CSPServerExtraOptionsParser.Decode(_configuration.WelcomeMessage);
         
-        if (configuration.Extra.EnableCustomUpdate)
+        if (_configuration.Extra.EnableCustomUpdate)
         {
             ExtraOptions += $"\r\n[EXTRA_DATA]\r\nCUSTOM_UPDATE_FORMAT = '{CSPPositionUpdate.CustomUpdateFormat}'";
         }
 
-        if (!configuration.Extra.UseSteamAuth)
+        if (!_configuration.Extra.UseSteamAuth)
         {
             ExtraOptions += "\r\n[EXTRA_TWEAKS]\r\nVERIFY_STEAM_API_INTEGRITY = 1";
         }
@@ -39,6 +44,15 @@ public class CSPServerExtraOptions
         {
             ExtraOptions += "\r\n[EXTRA_TWEAKS]\r\nMIN_TIME_BETWEEN_COLLISIONS = 2\r\n";
         }
+    }
+
+    /// <summary>
+    /// Refreshes the welcome message from the configuration. This is called by the WelcomeMessageWatcher
+    /// when the welcome message file is updated.
+    /// </summary>
+    public void RefreshWelcomeMessage()
+    {
+        LoadWelcomeMessage();
     }
 
     internal string GenerateWelcomeMessage(ACTcpClient client)

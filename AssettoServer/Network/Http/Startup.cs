@@ -61,6 +61,8 @@ public class Startup
         builder.RegisterType<UserGroupManager>().AsSelf().SingleInstance();
         builder.RegisterType<FileBasedUserGroup>().AsSelf();
         builder.RegisterType<FileBasedUserGroupProvider>().AsSelf().As<IUserGroupProvider>().As<IHostedService>().SingleInstance();
+        builder.RegisterType<ServerDescriptionWatcher>().As<IHostedService>().SingleInstance();
+        builder.RegisterType<WelcomeMessageWatcher>().As<IHostedService>().SingleInstance();
         builder.RegisterType<AdminService>().As<IAdminService>().SingleInstance();
         builder.RegisterType<BlacklistService>().As<IBlacklistService>().SingleInstance();
         builder.RegisterType<WhitelistService>().As<IWhitelistService>().SingleInstance();
