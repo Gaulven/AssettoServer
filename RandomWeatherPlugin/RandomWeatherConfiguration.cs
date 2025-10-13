@@ -23,7 +23,7 @@ public class RandomWeatherConfiguration : IValidateConfiguration<RandomWeatherCo
     public bool UseNaturalLanguage { get; set; } = true;
 
     // Weather transition message templates
-    public string SevereWeatherTemplate { get; set; } = "Weather alert: {FromWeather} will transition to {ToWeather} in approximately {TransitionTime}."
+    public string SevereWeatherTemplate { get; set; } = "Weather alert: {FromWeather} will transition to {ToWeather} in approximately {TransitionTime}.";
     public string ClearingWeatherTemplate { get; set; } = "Good news: {FromWeather} is clearing to {ToWeather} over {TransitionTime}.";
     public string IncomingPrecipitationTemplate { get; set; } = "Weather forecast: {FromWeather} will give way to {ToWeather} over {TransitionTime}.";
     public string PrecipitationChangeTemplate { get; set; } = "Weather update: {FromWeather} will transition to {ToWeather} over {TransitionTime}.";
