@@ -224,8 +224,15 @@ public class AiBehavior : CriticalBackgroundService, IAssettoServerAutostart
         _playerMinDistanceToAi.Clear();
 
         // === PHASE 2: Categorize all cars (players vs AI) ===
-        foreach (var entryCar in _entryCarManager.EntryCars)
+        // Randomize the order of cars by starting at a random index and wrapping around
+        int carCount = _entryCarManager.EntryCars.Length;
+        int startIndex = Random.Shared.Next(carCount);
+        
+        // Iterate over cars starting at random index, wrapping around to the beginning
+        for (int i = 0; i < carCount; i++)
         {
+            int idx = (startIndex + i) % carCount;
+            var entryCar = _entryCarManager.EntryCars[idx];
             var (currentSplinePointId, _) = _spline.WorldToSpline(entryCar.Status.Position);
             var drivingTheRightWay = Vector3.Dot(_spline.Operations.GetForwardVector(currentSplinePointId), entryCar.Status.Velocity) > 0;
 

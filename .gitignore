@@ -367,3 +367,6 @@ out-win-*
 
 # Trunk development tooling
 .trunk/
+
+.env
+.DS_Store
